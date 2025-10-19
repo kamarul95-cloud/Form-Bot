@@ -1,0 +1,170 @@
+<!--
+Form Bot — Fasa 2
+Single-file HTML that fetches questions from a published Google Sheets (CSV) link
+
+- Reads CSV from the provided published URL
+- Parses rows into question objects (supports text, textarea, choice, rating)
+- Preserves Fasa 1 UI (typing indicator, smooth scroll, WhatsApp-style)
+- Shows friendly error if CSV can't be loaded
+
+HOW TO USE
+1. If you want to change the Sheet, update `SHEET_CSV_URL` variable below.
+2. Make sure your Google Sheet is published to the web as CSV (File → Share → Publish to web → CSV).
+3. Open this HTML in a browser (desktop or mobile). It will fetch the questions on load.
+
+CSV expected columns (header row is required):
+No,Type,Question,Options
+
+Example rows:
+1,text,Hai! Boleh beritahu nama penuh anda?,
+2,text,Berapakah umur anda?,
+3,choice,Apa jantina anda?,Lelaki,Perempuan
+4,rating,Sejauh mana anda puas hati dengan pengalaman ini?,5
+5,textarea,Ada apa-apa maklum balas tambahan?,
+--><!doctype html>
+
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Form Bot — Dynamic (Google Sheets CSV)</title>
+  <style>
+    :root{--bg:#ece5dd;--panel:#ffffff;--wh-green:#25D366;--wh-dark:#128C7E;--muted:#6b6b6b;--user:#DCF8C6;--bot:#ffffff;font-family: 'Segoe UI', Roboto, system-ui, -apple-system, 'Helvetica Neue', Arial}
+    html,body{height:100%;margin:0;background:var(--bg)}
+    body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(rgba(0,0,0,0.01) 1px, transparent 1px);background-size:16px 16px;opacity:.6;pointer-events:none;mix-blend-mode:overlay}
+    .wrap{max-width:420px;margin:20px auto;height:86vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.12)}
+    .header{background:linear-gradient(90deg,var(--wh-dark),var(--wh-green));padding:12px 16px;color:white;display:flex;align-items:center;gap:12px}
+    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0f7c66,#15c46a);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
+    .hmeta{display:flex;flex-direction:column}
+    .hmeta .name{font-weight:700}
+    .hmeta .status{font-size:12px;opacity:.95}
+    .chat{background:linear-gradient(#e5ddd5 0%, #e8e3de 100%);flex:1;padding:16px;overflow:auto;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+    .bubble{max-width:78%;padding:10px 12px;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,0.04);line-height:1.35}
+    .bot{align-self:flex-start;background:var(--bot);border-top-left-radius:6px}
+    .user{align-self:flex-end;background:var(--user);border-top-right-radius:6px}
+    .time{font-size:11px;color:var(--muted);margin-top:6px;text-align:right}
+    .inputbar{display:flex;padding:10px;background:var(--panel);gap:8px;align-items:center}
+    .inputwrap{flex:1;display:flex;flex-direction:column}
+    input[type=text],textarea,select{width:100%;padding:10px;border-radius:18px;border:1px solid #e6e6e6;font-size:14px}
+    button{background:var(--wh-green);color:white;border:none;padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer}
+    .small{font-size:12px;color:var(--muted)}
+    .choice-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .choice{padding:8px 12px;border-radius:18px;border:1px solid #ddd;cursor:pointer;background:white}
+    .choice.active{background:var(--wh-green);color:white;border-color:transparent}
+    .rating{display:flex;gap:6px;font-size:20px}
+    .summary{padding:12px}
+    .download{display:flex;gap:8px;margin-top:12px}
+    .typing{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;width:90px;background:rgba(0,0,0,0.04)}
+    .dots{width:18px;height:10px;display:flex;gap:3px;align-items:center}
+    .dot{width:6px;height:6px;border-radius:50%;background:#999;opacity:.6;animation:blink 1s infinite}
+    .dot:nth-child(2){animation-delay:.15s}
+    .dot:nth-child(3){animation-delay:.3s}
+    @keyframes blink{0%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}100%{opacity:.2;transform:translateY(0)}}
+    .error{padding:12px;border-radius:8px;background:#ffecec;color:#8b0000;border:1px solid #f5c2c2}
+    .footer-note{text-align:center;padding:8px;font-size:12px;color:var(--muted)}
+    @media (max-width:460px){.wrap{margin:8px;height:92vh}}
+  </style>
+</head>
+<body>
+  <div class="wrap" role="application" aria-label="Form Bot chat form">
+    <div class="header">
+      <div class="avatar">FB</div>
+      <div class="hmeta">
+        <div class="name">Form Bot</div>
+        <div class="status">Borang dinamik — memuat soalan dari Google Sheets</div>
+      </div>
+    </div><main class="chat" id="chat" aria-live="polite"></main>
+
+<div id="controls" class="inputbar">
+  <div class="inputwrap" id="inputwrap"></div>
+  <div>
+    <button id="sendBtn">Hantar</button>
+  </div>
+</div>
+
+<div class="footer-note">Dibina oleh ChatGPT — Form Bot (Fasa 2)</div>
+
+  </div><script>
+// ---- CONFIG: letakkan link Google Sheets CSV kau di sini ----
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT6QwphjXT8oXSkmqhJnBxgj3XGzejImNAPCdpp-FjYTKbRhce-NLLbNNiNDguNlg82ZkcJ0BtCaqnC/pub?output=csv';
+// -----------------------------------------------------------
+
+const chat = document.getElementById('chat');
+const inputwrap = document.getElementById('inputwrap');
+const sendBtn = document.getElementById('sendBtn');
+let questions = [];
+let idx = 0;
+let responses = {};
+let currentAnswer = null;
+let typingEl = null;
+
+function timeNow(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});} 
+function smoothScrollTo(el){ if(!el) return; el.scrollIntoView({behavior:'smooth',block:'end'}); }
+function escapeHtml(unsafe){ return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+
+function el(msg, cls){ const e = document.createElement('div'); e.className='bubble ' + cls; e.innerHTML = msg + `<div class="time">${timeNow()}</div>`; chat.appendChild(e); smoothScrollTo(e); return e; }
+
+function showTyping(){ if(typingEl) return; typingEl = document.createElement('div'); typingEl.className='typing bot'; typingEl.innerHTML = `<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`; chat.appendChild(typingEl); smoothScrollTo(typingEl); }
+function hideTyping(){ if(!typingEl) return; typingEl.remove(); typingEl = null; }
+
+function botSay(text, delay=300){ showTyping(); setTimeout(()=>{ hideTyping(); el(`<div>${text}</div>`, 'bot'); }, delay + 350); }
+function userSay(text){ el(`<div>${escapeHtml(text)}</div>`, 'user'); }
+
+function parseCSV(csv){
+  // simple CSV parser: split lines, then split by comma but keep commas in options
+  const lines = csv.split('
+').map(l=>l.trim()).filter(l=>l.length>0);
+  if(lines.length<=1) return [];
+  const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  const rows = lines.slice(1);
+  const out = [];
+  rows.forEach(r=>{
+    // split into 4 columns: No,Type,Question,Options (Options may contain commas)
+    const parts = r.split(',');
+    const no = parts[0] ? parts[0].trim() : '';
+    const type = parts[1] ? parts[1].trim().toLowerCase() : '';
+    const question = parts[2] ? parts[2].trim() : '';
+    const options = parts.slice(3).join(',').trim();
+    if(!type || !question) return;
+    let qobj = {id: no || String(out.length+1), type, label: question};
+    if(type==='choice'){
+      qobj.options = options.split(',').map(s=>s.trim()).filter(s=>s.length>0);
+    } else if(type==='rating'){
+      const max = parseInt(options) || 5; qobj.max = Math.max(2, Math.min(10, max));
+    }
+    out.push(qobj);
+  });
+  return out.sort((a,b)=> (Number(a.id)||0) - (Number(b.id)||0));
+}
+
+function renderInputForQuestion(q){ inputwrap.innerHTML=''; currentAnswer=null; const label = document.createElement('div'); label.className='small'; label.textContent = q.label + (q.required? ' *' : ''); inputwrap.appendChild(label);
+  if(q.type==='text'){ const inp = document.createElement('input'); inp.type='text'; inp.placeholder=q.placeholder||''; inp.id='currentInput'; inp.addEventListener('input', e=> currentAnswer = e.target.value); inputwrap.appendChild(inp); inp.focus(); }
+  else if(q.type==='textarea'){ const ta = document.createElement('textarea'); ta.rows=2; ta.placeholder=q.placeholder||''; ta.id='currentInput'; ta.addEventListener('input', e=> currentAnswer = e.target.value); inputwrap.appendChild(ta); ta.focus(); }
+  else if(q.type==='choice'){ const grid = document.createElement('div'); grid.className='choice-grid'; (q.options||[]).forEach(opt=>{ const btn = document.createElement('div'); btn.className='choice'; btn.textContent = opt; btn.addEventListener('click', ()=>{ Array.from(grid.children).forEach(c=>c.classList.remove('active')); btn.classList.add('active'); currentAnswer = opt; }); grid.appendChild(btn); }); inputwrap.appendChild(grid); }
+  else if(q.type==='rating'){ const rwrap = document.createElement('div'); rwrap.className='rating'; const max = q.max || 5; for(let i=1;i<=max;i++){ const star = document.createElement('button'); star.type='button'; star.textContent='★'; star.className='choice'; star.style.padding='6px 10px'; star.addEventListener('click', ()=>{ currentAnswer = i; Array.from(rwrap.children).forEach((c,idx)=>{c.classList.toggle('active', idx < i)}); }); rwrap.appendChild(star); } inputwrap.appendChild(rwrap); }
+}
+
+function askNext(){ if(idx >= questions.length){ finishFlow(); return; } const q = questions[idx]; const estimatedMs = Math.min(1800, 400 + (q.label.length * 30)); showTyping(); setTimeout(()=>{ hideTyping(); botSay(`<strong>${q.label}</strong>`, 80); renderInputForQuestion(q); }, estimatedMs); }
+
+function validateCurrent(){ const q = questions[idx]; if(q.required){ if(currentAnswer===null || currentAnswer===undefined) return {ok:false,msg:'Sila jawab soalan ini.'}; if(typeof currentAnswer==='string' && currentAnswer.trim()==='') return {ok:false,msg:'Sila isi ruangan.'}; } return {ok:true}; }
+
+sendBtn.addEventListener('click', ()=>{ if(idx >= questions.length) return; const q = questions[idx]; const valid = validateCurrent(); if(!valid.ok){ alert(valid.msg); return; } responses[q.id] = currentAnswer===undefined? '' : currentAnswer; userSay(String(currentAnswer===null? '' : currentAnswer)); idx++; setTimeout(()=> askNext(), 450); });
+
+function finishFlow(){ botSay('Terima kasih! Semua soalan telah dijawab. Berikut ringkasan jawapan anda:'); renderSummary(); inputwrap.innerHTML=''; sendBtn.style.display='none'; }
+
+function renderSummary(){ const s = document.createElement('div'); s.className='summary'; const list = document.createElement('div'); questions.forEach(q=>{ const row = document.createElement('div'); row.innerHTML = `<strong>${q.label}:</strong> ${escapeHtml(String(responses[q.id]||'—'))}`; row.style.marginBottom='8px'; list.appendChild(row); }); s.appendChild(list); const dl = document.createElement('div'); dl.className='download'; const btnJson = document.createElement('button'); btnJson.textContent='Muat Turun (JSON)'; btnJson.addEventListener('click', ()=> downloadJSON()); const btnCsv = document.createElement('button'); btnCsv.textContent='Muat Turun (CSV)'; btnCsv.addEventListener('click', ()=> downloadCSV()); dl.appendChild(btnJson); dl.appendChild(btnCsv); s.appendChild(dl); chat.appendChild(s); smoothScrollTo(s); }
+
+function downloadJSON(){ const data = {meta:{title:'Form Bot', date:new Date().toISOString()}, responses}; const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='responses.json'; a.click(); URL.revokeObjectURL(url); }
+function downloadCSV(){ const header = questions.map(q=>`"${q.label.replace(/"/g,'""')}"`).join(','); const row = questions.map(q=>`"${String(responses[q.id]||'').replace(/"/g,'""')}"`).join(','); const csv = header + '
+' + row; const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='responses.csv'; a.click(); URL.revokeObjectURL(url); }
+
+// Fetch CSV and start
+async function start(){ botSay('Memuatkan soalan dari server...'); try{ const res = await fetch(SHEET_CSV_URL); if(!res.ok) throw new Error('HTTP ' + res.status); const text = await res.text(); const parsed = parseCSV(text); if(!parsed || parsed.length===0) throw new Error('Tiada soalan dijumpai (pastikan format betul dan header ada)'); questions = parsed; // mark required? not in sheet; you can add logic for required field later
+    setTimeout(()=> askNext(), 800);
+  } catch(err){ console.error(err); const errEl = document.createElement('div'); errEl.className='error'; errEl.textContent = 'Gagal memuatkan soalan dari Google Sheets: ' + err.message + ' — Sila semak link CSV atau publish status.'; chat.appendChild(errEl); smoothScrollTo(errEl); inputwrap.innerHTML=''; sendBtn.disabled=true; }
+}
+
+start();
+
+</script></body>
+</html>
