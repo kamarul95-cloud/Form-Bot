@@ -1,139 +1,276 @@
-<!DOCTYPE html>
+<!doctype html>
+
 <html lang="ms">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Form Bot</title>
-  <style>
-    body {
-      background-color: #ece5dd;
-      font-family: "Segoe UI", sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .chat-container {
-      width: 400px;
-      max-width: 95%;
-      height: 90vh;
-      background-color: #fff;
-      display: flex;
-      flex-direction: column;
-      border-radius: 20px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-      overflow: hidden;
-    }
-
-    .chat-header {
-      background-color: #075e54;
-      color: white;
-      padding: 15px;
-      text-align: center;
-      font-weight: bold;
-    }
-
-    .chat-messages {
-      flex: 1;
-      padding: 15px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background-color: #e5ddd5;
-    }
-
-    .bot {
-      align-self: flex-start;
-      background-color: #fff;
-      padding: 10px 14px;
-      border-radius: 10px;
-      max-width: 80%;
-      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
-    }
-
-    .user {
-      align-self: flex-end;
-      background-color: #dcf8c6;
-      padding: 10px 14px;
-      border-radius: 10px;
-      max-width: 80%;
-      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
-    }
-
-    .chat-input {
-      display: flex;
-      border-top: 1px solid #ccc;
-    }
-
-    .chat-input input {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      outline: none;
-    }
-
-    .chat-input button {
-      background-color: #128c7e;
-      border: none;
-      color: white;
-      padding: 0 20px;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Form Bot — Media Auto-detect (Image / Video / Audio / PDF)</title>
+<style>
+:root{ --bg:#e5ddd5; --wh-green:#25D366; --wh-dark:#128C7E; --muted:#6b6b6b; --user:#DCF8C6; --bot:#ffffff; --panel:#ffffff; font-family:"Segoe UI", Roboto, system-ui, -apple-system, "Helvetica Neue", Arial; }
+html,body{height:100%;margin:0;background:var(--bg);} body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(rgba(0,0,0,0.01) 1px, transparent 1px);background-size:16px 16px;opacity:.5;pointer-events:none;mix-blend-mode:overlay;}
+.wrap{max-width:420px;margin:22px auto;height:86vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,0.12);background:linear-gradient(180deg,#f8f9f7,#f3f5f3)}
+.header{background:linear-gradient(90deg,var(--wh-dark),var(--wh-green));padding:12px 16px;color:#fff;display:flex;align-items:center;gap:12px}
+.avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0f7c66,#15c46a);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
+.hmeta{display:flex;flex-direction:column}
+.hmeta .name{font-weight:700}
+.hmeta .status{font-size:12px;opacity:.95}
+.chat{background:linear-gradient(#e5ddd5 0%, #e8e3de 100%);flex:1;padding:16px;overflow:auto;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth;padding-bottom:120px}
+.bubble{max-width:78%;padding:10px 12px;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,0.04);line-height:1.35}
+.bot{align-self:flex-start;background:var(--bot);border-top-left-radius:6px;position:relative}
+.user{align-self:flex-end;background:var(--user);border-top-right-radius:6px;position:relative}
+.time{font-size:11px;color:var(--muted);margin-top:6px;text-align:right}
+.typing {display:flex;align-items:center;padding:8px 12px;border-radius:12px;width:auto;background:rgba(0,0,0,0.04)}
+.dots{display:flex;gap:6px;padding-left:4px}
+.dot{width:7px;height:7px;border-radius:50%;background:#999;opacity:.6;animation:dot 1s infinite ease-in-out}
+.dot:nth-child(2){animation-delay:0.12s}
+.dot:nth-child(3){animation-delay:0.24s}
+@keyframes dot{0%{transform:translateY(0);opacity:.3}50%{transform:translateY(-4px);opacity:1}100%{transform:translateY(0);opacity:.3}}
+.inputbar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;max-width:420px;width:calc(100% - 44px);display:flex;padding:10px;background:var(--panel);gap:8px;align-items:center;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+.inputwrap{flex:1;display:flex;flex-direction:column}
+input[type=text],textarea,select{width:100%;padding:10px;border-radius:18px;border:1px solid #e6e6e6;font-size:14px}
+button.send{background:var(--wh-green);color:white;border:none;padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer;min-width:84px}
+.small{font-size:12px;color:var(--muted)}
+.choice-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.choice{padding:8px 12px;border-radius:18px;border:1px solid #ddd;cursor:pointer;background:white}
+.choice.active{background:var(--wh-green);color:white;border-color:transparent}
+.rating{display:flex;gap:6px;font-size:20px}
+.summary{padding:12px;white-space:pre-line;background:rgba(255,255,255,0.92);border-radius:8px}
+.footer-note{text-align:center;padding:8px;font-size:12px;color:var(--muted)}
+/* media styles */
+.media-wrap{padding:10px;background:#fff;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.06);display:flex;flex-direction:column;gap:8px}
+.media-img{max-width:100%;height:auto;border-radius:8px}
+.media-iframe{width:100%;height:320px;border:0;border-radius:8px;background:#f6f6f6}
+.media-video{width:100%;height:auto;border-radius:8px}
+.media-audio{width:100%;}
+.media-actions{display:flex;gap:8px;align-items:center}
+.media-link{display:inline-block;padding:8px 10px;border-radius:8px;border:1px solid #e6e6e6;text-decoration:none;color:#0b6e5a;font-weight:700;background:#fff}
+@media (max-width:460px){.wrap{margin:8px;height:92vh}.inputbar{width:calc(100% - 24px)} .media-iframe{height:220px}}
+</style>
 </head>
 <body>
-  <div class="chat-container">
-    <div class="chat-header">Form Bot 💬</div>
-    <div id="chat" class="chat-messages"></div>
-    <div class="chat-input">
-      <input id="userInput" type="text" placeholder="Tulis jawapan anda..." />
-      <button onclick="sendMessage()">Hantar</button>
+<div class="wrap" role="application" aria-label="Form Bot chat form">
+  <div class="header">
+    <div class="avatar">FB</div>
+    <div class="hmeta">
+      <div class="name">Form Bot - </div>
+      <div class="status">Online — Sila jawab soalan</div>
     </div>
-  </div>
+  </div>  <main class="chat" id="chat" aria-live="polite"></main>  <div id="controls" class="inputbar" aria-hidden="false">
+    <div class="inputwrap" id="inputwrap"></div>
+    <div>
+      <button id="sendBtn" class="send">Hantar</button>
+    </div>
+  </div>  <div class="footer-note">Dibina oleh Qamar — Form Bot</div>
+</div><script>
+// === GANTI INI DENGAN LINK CSV ANDA ===
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT6QwphjXT8oXSkmqhJnBxgj3XGzejImNAPCdpp-FjYTKbRhce-NLLbNNiNDguNlg82ZkcJ0BtCaqnC/pub?output=csv';
 
-  <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6QwphjXT8oXSkmqhJnBxgj3XGzejImNAPCdpp-FjYTKbRhce-NLLbNNiNDguNlg82ZkcJ0BtCaqnC/pub?output=csv";
-    let questions = [];
-    let currentIndex = 0;
+const chat = document.getElementById('chat');
+const inputwrap = document.getElementById('inputwrap');
+const sendBtn = document.getElementById('sendBtn');
 
-    function parseCSV(text) {
-      const rows = [];
-      const regex = /(\"[^\"]*(\"{2})*[^\"]*\"|[^,\\r\\n]*)/g;
-      const lines = text.trim().split(/\\r?\\n/);
-      for (let line of lines) {
-        const matches = line.match(regex);
-        if (!matches) continue;
-        const clean = matches.map(v => v.replace(/^\"|\"$/g, '').replace(/\"\"/g, '"'));
-        rows.push(clean);
-      }
-      return rows;
+let questions = [], idx = 0, responses = {}, closingTemplate = null, currentAnswer = null, typingEl = null;
+let mediaItems = []; // {url, label}
+
+function timeNow(){ const d=new Date(); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function smoothScroll(el){ if(!el) return; el.scrollIntoView({behavior:'smooth',block:'center'}); }
+function appendBubbleText(text, cls){
+  const e = document.createElement('div'); e.className = 'bubble ' + cls;
+  const content = document.createElement('div'); content.textContent = text;
+  e.appendChild(content);
+  const t = document.createElement('div'); t.className='time'; t.textContent = timeNow();
+  e.appendChild(t);
+  chat.appendChild(e);
+  setTimeout(()=> { smoothScroll(e); }, 60);
+  return e;
+}
+function showTyping(){ if(typingEl) return; typingEl = document.createElement('div'); typingEl.className = 'typing bot';
+  const dots = document.createElement('div'); dots.className='dots'; for(let i=0;i<3;i++){ const d = document.createElement('span'); d.className='dot'; dots.appendChild(d); }
+  const label = document.createElement('div'); label.style.marginLeft='8px'; label.style.color='#6b6b6b'; label.style.fontSize='13px'; label.textContent = 'Bot sedang menaip...';
+  typingEl.appendChild(dots); typingEl.appendChild(label);
+  chat.appendChild(typingEl); setTimeout(()=> { smoothScroll(typingEl); }, 40);
+}
+function hideTyping(){ if(!typingEl) return; typingEl.remove(); typingEl=null; }
+
+function parseCSV(text){
+  const rows = []; let cur = ''; let row = []; let inQuotes = false;
+  for(let i=0;i<text.length;i++){ const ch = text[i]; const nxt = text[i+1];
+    if(ch === '"'){ if(inQuotes && nxt === '"'){ cur += '"'; i++; continue; } inQuotes = !inQuotes; continue; }
+    if(ch === ',' && !inQuotes){ row.push(cur); cur = ''; continue; }
+    if((ch === '\n' || ch === '\r') && !inQuotes){ if(ch === '\r' && nxt === '\n'){ i++; } row.push(cur); rows.push(row.map(c=> (c||'').toString().trim() )); row = []; cur = ''; continue; }
+    cur += ch;
+  }
+  row.push(cur);
+  if(row.length > 1 || (row.length === 1 && row[0] !== '')) rows.push(row.map(c=> (c||'').toString().trim()));
+  return rows;
+}
+
+function botSay(text){ showTyping(); const delay = Math.min(1800,300+(String(text).length*22))+240; setTimeout(()=>{ hideTyping(); appendBubbleText(text,'bot'); }, delay); }
+function userSay(text){ appendBubbleText(text,'user'); }
+
+function renderInput(q){
+  inputwrap.innerHTML=''; currentAnswer=null;
+  const label = document.createElement('div'); label.className='small'; label.textContent = q.question || q.label || '';
+  inputwrap.appendChild(label);
+
+  if(q.type==='text' || !q.type){
+    const inp = document.createElement('input'); inp.type='text'; inp.id='currentInput'; inp.placeholder=q.placeholder||'';
+    inp.addEventListener('input', e=>currentAnswer=e.target.value);
+    inputwrap.appendChild(inp); sendBtn.style.display='inline-block'; setTimeout(()=>inp.focus(),250);
+  } else if(q.type==='textarea'){
+    const ta = document.createElement('textarea'); ta.rows=3; ta.id='currentInput'; ta.placeholder=q.placeholder||'';
+    ta.addEventListener('input', e=>currentAnswer=e.target.value);
+    inputwrap.appendChild(ta); sendBtn.style.display='inline-block'; setTimeout(()=>ta.focus(),250);
+  } else if(q.type==='choice'){
+    const grid = document.createElement('div'); grid.className='choice-grid';
+    (q.options||[]).forEach(opt=>{
+      const b = document.createElement('button'); b.type='button'; b.className='choice'; b.textContent=opt;
+      b.addEventListener('click',()=>{ currentAnswer=opt; userSay(opt); responses[q.id||q.no||q.question]=opt; Array.from(grid.children).forEach(c=>c.classList.remove('active')); b.classList.add('active'); inputwrap.innerHTML=''; idx++; setTimeout(proceedNext,320); });
+      grid.appendChild(b);
+    }); inputwrap.appendChild(grid); sendBtn.style.display='none';
+  } else if(q.type==='rating'){
+    const rwrap=document.createElement('div'); rwrap.className='rating'; const max=q.max||5;
+    for(let i=1;i<=max;i++){ const star=document.createElement('button'); star.type='button'; star.className='choice'; star.textContent='★'; star.style.padding='6px 10px';
+      star.addEventListener('click',()=>{ currentAnswer=String(i); userSay(`${i} / ${max}`); responses[q.id||q.no||q.question]=i; idx++; inputwrap.innerHTML=''; setTimeout(proceedNext,320); }); rwrap.appendChild(star); }
+    inputwrap.appendChild(rwrap); sendBtn.style.display='none';
+  } else {
+    // fallback treat as text
+    const inp = document.createElement('input'); inp.type='text'; inp.id='currentInput'; inp.placeholder=q.placeholder||'';
+    inp.addEventListener('input', e=>currentAnswer=e.target.value);
+    inputwrap.appendChild(inp); sendBtn.style.display='inline-block'; setTimeout(()=>inp.focus(),250);
+  }
+}
+
+sendBtn.addEventListener('click',()=>{
+  if(idx>=questions.length) return;
+  const q=questions[idx]; const el=document.getElementById('currentInput'); let val=currentAnswer;
+  if((val===null||val===undefined)&&el) val=el.value;
+  if(typeof val==='string'&&val.trim()===''){ alert('Sila isi ruangan ini dahulu.'); return; }
+  userSay(val); responses[q.id||q.no||q.question]=val; idx++; inputwrap.innerHTML=''; setTimeout(proceedNext,320);
+});
+
+function proceedNext(){ if(idx>=questions.length){ renderClosingTemplate(); return; } const q=questions[idx]; botSay(String(q.question||q.label||'Soalan')); const delay=Math.min(1800,300+((q.question||'').length*22))+260; setTimeout(()=>renderInput(q),delay); }
+
+// helper: detect file extension or type from URL
+function detectMediaType(url){ if(!url) return 'unknown'; const clean = url.split('?')[0].toLowerCase(); const extMatch = clean.match(/\.([a-z0-9]+)$/); if(extMatch && extMatch[1]){ const ext = extMatch[1]; if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)) return 'image'; if(['mp4','webm','ogg','mov','m4v'].includes(ext)) return 'video'; if(['mp3','wav','m4a','aac','oga','ogg'].includes(ext)) return 'audio'; if(ext==='pdf') return 'pdf'; if(['doc','docx','xls','xlsx','ppt','pptx'].includes(ext)) return 'document'; }
+  // google drive heuristics
+  if(/drive\.google\.com/i.test(url)){
+    // Could be image / video / pdf — but we don't know; return 'drive' to treat as iframe preview
+    return 'drive';
+  }
+  // fallback: unknown
+  return 'unknown';
+}
+
+function drivePreviewUrl(orig){ try{ if(!orig) return orig; const m1 = orig.match(/\/d\/([a-zA-Z0-9_-]+)/); if(m1 && m1[1]) return `https://drive.google.com/uc?export=view&id=${m1[1]}`; const m2 = orig.match(/[?&]id=([a-zA-Z0-9_-]+)/); if(m2 && m2[1]) return `https://drive.google.com/uc?export=view&id=${m2[1]}`; // as fallback try preview
+    const m3 = orig.match(/\/file\/d\/([a-zA-Z0-9_-]+)\/view/); if(m3 && m3[1]) return `https://drive.google.com/uc?export=view&id=${m3[1]}`; return orig;}catch(e){return orig;} }
+
+// render single media block according to detected type
+function renderMediaElement(m){
+  const wrap = document.createElement('div'); wrap.className='media-wrap';
+  if(m.label){ const lab = document.createElement('div'); lab.className='small'; lab.style.fontWeight='700'; lab.textContent = m.label; wrap.appendChild(lab); }
+
+  const type = detectMediaType(m.url);
+  if(type==='image'){
+    const img = document.createElement('img'); img.className='media-img'; img.src = m.url; img.alt = m.label||'Media image'; img.loading='lazy'; wrap.appendChild(img);
+  } else if(type==='video'){
+    const vid = document.createElement('video'); vid.className='media-video'; vid.controls=true; vid.src = m.url; vid.preload='metadata'; wrap.appendChild(vid);
+  } else if(type==='audio'){
+    const au = document.createElement('audio'); au.className='media-audio'; au.controls=true; const src = document.createElement('source'); src.src = m.url; au.appendChild(src); wrap.appendChild(au);
+  } else if(type==='pdf'){
+    const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = m.url; wrap.appendChild(iframe);
+  } else if(type==='drive'){
+    // try to make direct view link for drive
+    const direct = drivePreviewUrl(m.url);
+    // If drive link points to an image (uc?export=view produced direct image) we can show as <img>
+    if(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(direct)){
+      const img = document.createElement('img'); img.className='media-img'; img.src = direct; img.loading='lazy'; wrap.appendChild(img);
+    } else {
+      const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = direct; wrap.appendChild(iframe);
     }
+  } else {
+    // unknown: show as link and try iframe
+    const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = m.url; wrap.appendChild(iframe);
+  }
 
-    async function loadQuestions() {
-      addMessage("Bot", "📥 Memuatkan soalan dari Google Sheet...");
-      try {
-        const res = await fetch(csvUrl);
-        const text = await res.text();
-        const data = parseCSV(text);
-        const headers = data.shift();
-        questions = data.map(row => {
-          const obj = {};
-          headers.forEach((h, i) => obj[h.trim()] = row[i]);
-          return obj;
-        });
-        if (!questions.length) {
-          addMessage("Bot", "⚠️ Tiada soalan ditemui dalam Google Sheet.");
-          return;
-        }
-        addMessage("Bot", "✅ Soalan berjaya dimuatkan!");
-        setTimeout(() => askQuestion(), 1000);
-      } catch (err) {
-        console.error("❌ Ralat load:", err);
-        addMessage("Bot", "❌ Tidak dapat memuatkan soalan dari Google Sheet.");
+  // actions: open / download
+  const actions = document.createElement('div'); actions.className='media-actions';
+  const a = document.createElement('a'); a.className='media-link'; a.href = m.url; a.target = '_blank'; a.rel='noopener'; a.textContent = 'Buka / Muat Turun';
+  actions.appendChild(a);
+  wrap.appendChild(actions);
+  chat.appendChild(wrap);
+  setTimeout(()=>chat.scrollTop=chat.scrollHeight,80);
+}
+
+// generate closing template + render media
+function renderClosingTemplate(){
+  inputwrap.innerHTML=''; sendBtn.style.display='none';
+  if(!closingTemplate) { appendBubbleText('Terima kasih! Semua soalan telah dijawab.','bot'); return; }
+  let text=closingTemplate;
+  questions.forEach(q=>{ const key=q.id||q.no||q.question; if(text.includes(`(${key})`)) text=text.replaceAll(`(${key})`, responses[key]||'—'); });
+  const s=document.createElement('div'); s.className='summary'; s.innerHTML = text.replace(/\r?\n/g,'<br>'); chat.appendChild(s); setTimeout(()=>chat.scrollTop=chat.scrollHeight,80);
+
+  // render media items AFTER closing template
+  if(mediaItems && mediaItems.length){
+    mediaItems.forEach(m=>{ renderMediaElement(m); });
+  }
+}
+
+// fetch CSV dan start
+async function start(){
+  botSay('Memuatkan soalan dari server...');
+  try{
+    const r=await fetch(SHEET_CSV_URL); if(!r.ok) throw new Error('HTTP '+r.status);
+    const text=await r.text();
+    const rows=parseCSV(text);
+    if(!rows || rows.length<=1) throw new Error('Tiada data ditemui. Semak Google Sheet (publish to web).');
+
+    const header=rows[0].map(h=>(h||'').toString().trim().toLowerCase());
+    const iNo=header.indexOf('no'); const iType=header.indexOf('type');
+    const iQuestion=header.indexOf('question')>=0 ? header.indexOf('question') : header.indexOf('label');
+    const iOptions=header.indexOf('options'); const iClosing=header.indexOf('closing_template');
+    const iFile = header.indexOf('file_url');
+
+    mediaItems = [];
+
+    questions=rows.slice(1).map((r,i)=>{
+      const noVal = iNo>=0 ? (r[iNo]||'').toString().trim() : '';
+      const typeVal = iType>=0 ? (r[iType]||'').toString().trim().toLowerCase() : '';
+      const closingVal = iClosing>=0 ? (r[iClosing]||'').toString().trim() : '';
+
+      if(typeVal === 'closing'){
+        if(closingVal) closingTemplate = closingVal.replace(/\r\n?/g,'\n');
+        return null;
       }
+
+      if(typeVal === 'media' || typeVal === 'file'){
+        const fileUrl = iFile>=0 ? (r[iFile]||'').toString().trim() : '';
+        if(fileUrl){ const lbl = (iQuestion>=0 ? (r[iQuestion]||'').toString().trim() : '') || noVal || ('Media ' + (mediaItems.length+1)); mediaItems.push({ url: fileUrl, label: lbl }); }
+        return null;
+      }
+
+      const validTypes = ['text','textarea','choice','rating'];
+      if(noVal !== '' && typeVal !== '' && validTypes.includes(typeVal)){
+        const qobj = {}; qobj.no = noVal; qobj.type = typeVal; qobj.question = (iQuestion>=0 ? (r[iQuestion]||'').toString().trim() : '') || ('Soalan ' + noVal); qobj.id = qobj.no;
+        if(iOptions>=0){ const raw = (r[iOptions]||'').toString(); if(qobj.type==='choice') qobj.options = raw.split(',').map(s=>s.trim()).filter(Boolean); else if(qobj.type==='rating') qobj.max = parseInt(raw) || 5; }
+        return qobj;
+      }
+
+      if(closingVal) closingTemplate = closingVal;
+      return null;
+    }).filter(q=>q);
+
+    if(!questions.length) throw new Error('Tiada soalan dijumpai dalam CSV.');
+
+    idx=0; responses={};
+    setTimeout(()=>{ botSay('Soalan berjaya dimuatkan — mari kita mula!'); },600);
+    setTimeout(()=>proceedNext(),1400);
+  }catch(err){ console.error(err); appendBubbleText('❌ Gagal memuatkan soalan: '+(err.message||err),'bot'); inputwrap.innerHTML='<div class="small">Sila semak link CSV atau publish status di Google Sheets.</div>'; sendBtn.style.display='none'; }
+}
+
+start();
+</script></body>
+</html>      }
     }
 
     function addMessage(sender, text) {
