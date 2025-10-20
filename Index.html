@@ -269,6 +269,144 @@ async function start(){
 }
 
 start();
+</script>
+</body>
+</html>  } else {
+    // fallback treat as text
+    const inp = document.createElement('input'); inp.type='text'; inp.id='currentInput'; inp.placeholder=q.placeholder||'';
+    inp.addEventListener('input', e=>currentAnswer=e.target.value);
+    inputwrap.appendChild(inp); sendBtn.style.display='inline-block'; setTimeout(()=>inp.focus(),250);
+  }
+}
+
+sendBtn.addEventListener('click',()=>{
+  if(idx>=questions.length) return;
+  const q=questions[idx]; const el=document.getElementById('currentInput'); let val=currentAnswer;
+  if((val===null||val===undefined)&&el) val=el.value;
+  if(typeof val==='string'&&val.trim()===''){ alert('Sila isi ruangan ini dahulu.'); return; }
+  userSay(val); responses[q.id||q.no||q.question]=val; idx++; inputwrap.innerHTML=''; setTimeout(proceedNext,320);
+});
+
+function proceedNext(){ if(idx>=questions.length){ renderClosingTemplate(); return; } const q=questions[idx]; botSay(String(q.question||q.label||'Soalan')); const delay=Math.min(1800,300+((q.question||'').length*22))+260; setTimeout(()=>renderInput(q),delay); }
+
+// helper: detect file extension or type from URL
+function detectMediaType(url){ if(!url) return 'unknown'; const clean = url.split('?')[0].toLowerCase(); const extMatch = clean.match(/\.([a-z0-9]+)$/); if(extMatch && extMatch[1]){ const ext = extMatch[1]; if(['png','jpg','jpeg','gif','webp','bmp','svg'].includes(ext)) return 'image'; if(['mp4','webm','ogg','mov','m4v'].includes(ext)) return 'video'; if(['mp3','wav','m4a','aac','oga','ogg'].includes(ext)) return 'audio'; if(ext==='pdf') return 'pdf'; if(['doc','docx','xls','xlsx','ppt','pptx'].includes(ext)) return 'document'; }
+  // google drive heuristics
+  if(/drive\.google\.com/i.test(url)){
+    // Could be image / video / pdf — but we don't know; return 'drive' to treat as iframe preview
+    return 'drive';
+  }
+  // fallback: unknown
+  return 'unknown';
+}
+
+function drivePreviewUrl(orig){ try{ if(!orig) return orig; const m1 = orig.match(/\/d\/([a-zA-Z0-9_-]+)/); if(m1 && m1[1]) return `https://drive.google.com/uc?export=view&id=${m1[1]}`; const m2 = orig.match(/[?&]id=([a-zA-Z0-9_-]+)/); if(m2 && m2[1]) return `https://drive.google.com/uc?export=view&id=${m2[1]}`; // as fallback try preview
+    const m3 = orig.match(/\/file\/d\/([a-zA-Z0-9_-]+)\/view/); if(m3 && m3[1]) return `https://drive.google.com/uc?export=view&id=${m3[1]}`; return orig;}catch(e){return orig;} }
+
+// render single media block according to detected type
+function renderMediaElement(m){
+  const wrap = document.createElement('div'); wrap.className='media-wrap';
+  if(m.label){ const lab = document.createElement('div'); lab.className='small'; lab.style.fontWeight='700'; lab.textContent = m.label; wrap.appendChild(lab); }
+
+  const type = detectMediaType(m.url);
+  if(type==='image'){
+    const img = document.createElement('img'); img.className='media-img'; img.src = m.url; img.alt = m.label||'Media image'; img.loading='lazy'; wrap.appendChild(img);
+  } else if(type==='video'){
+    const vid = document.createElement('video'); vid.className='media-video'; vid.controls=true; vid.src = m.url; vid.preload='metadata'; wrap.appendChild(vid);
+  } else if(type==='audio'){
+    const au = document.createElement('audio'); au.className='media-audio'; au.controls=true; const src = document.createElement('source'); src.src = m.url; au.appendChild(src); wrap.appendChild(au);
+  } else if(type==='pdf'){
+    const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = m.url; wrap.appendChild(iframe);
+  } else if(type==='drive'){
+    // try to make direct view link for drive
+    const direct = drivePreviewUrl(m.url);
+    // If drive link points to an image (uc?export=view produced direct image) we can show as <img>
+    if(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(direct)){
+      const img = document.createElement('img'); img.className='media-img'; img.src = direct; img.loading='lazy'; wrap.appendChild(img);
+    } else {
+      const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = direct; wrap.appendChild(iframe);
+    }
+  } else {
+    // unknown: show as link and try iframe
+    const iframe = document.createElement('iframe'); iframe.className='media-iframe'; iframe.src = m.url; wrap.appendChild(iframe);
+  }
+
+  // actions: open / download
+  const actions = document.createElement('div'); actions.className='media-actions';
+  const a = document.createElement('a'); a.className='media-link'; a.href = m.url; a.target = '_blank'; a.rel='noopener'; a.textContent = 'Buka / Muat Turun';
+  actions.appendChild(a);
+  wrap.appendChild(actions);
+  chat.appendChild(wrap);
+  setTimeout(()=>chat.scrollTop=chat.scrollHeight,80);
+}
+
+// generate closing template + render media
+function renderClosingTemplate(){
+  inputwrap.innerHTML=''; sendBtn.style.display='none';
+  if(!closingTemplate) { appendBubbleText('Terima kasih! Semua soalan telah dijawab.','bot'); return; }
+  let text=closingTemplate;
+  questions.forEach(q=>{ const key=q.id||q.no||q.question; if(text.includes(`(${key})`)) text=text.replaceAll(`(${key})`, responses[key]||'—'); });
+  const s=document.createElement('div'); s.className='summary'; s.innerHTML = text.replace(/\r?\n/g,'<br>'); chat.appendChild(s); setTimeout(()=>chat.scrollTop=chat.scrollHeight,80);
+
+  // render media items AFTER closing template
+  if(mediaItems && mediaItems.length){
+    mediaItems.forEach(m=>{ renderMediaElement(m); });
+  }
+}
+
+// fetch CSV dan start
+async function start(){
+  botSay('Memuatkan soalan dari server...');
+  try{
+    const r=await fetch(SHEET_CSV_URL); if(!r.ok) throw new Error('HTTP '+r.status);
+    const text=await r.text();
+    const rows=parseCSV(text);
+    if(!rows || rows.length<=1) throw new Error('Tiada data ditemui. Semak Google Sheet (publish to web).');
+
+    const header=rows[0].map(h=>(h||'').toString().trim().toLowerCase());
+    const iNo=header.indexOf('no'); const iType=header.indexOf('type');
+    const iQuestion=header.indexOf('question')>=0 ? header.indexOf('question') : header.indexOf('label');
+    const iOptions=header.indexOf('options'); const iClosing=header.indexOf('closing_template');
+    const iFile = header.indexOf('file_url');
+
+    mediaItems = [];
+
+    questions=rows.slice(1).map((r,i)=>{
+      const noVal = iNo>=0 ? (r[iNo]||'').toString().trim() : '';
+      const typeVal = iType>=0 ? (r[iType]||'').toString().trim().toLowerCase() : '';
+      const closingVal = iClosing>=0 ? (r[iClosing]||'').toString().trim() : '';
+
+      if(typeVal === 'closing'){
+        if(closingVal) closingTemplate = closingVal.replace(/\r\n?/g,'\n');
+        return null;
+      }
+
+      if(typeVal === 'media' || typeVal === 'file'){
+        const fileUrl = iFile>=0 ? (r[iFile]||'').toString().trim() : '';
+        if(fileUrl){ const lbl = (iQuestion>=0 ? (r[iQuestion]||'').toString().trim() : '') || noVal || ('Media ' + (mediaItems.length+1)); mediaItems.push({ url: fileUrl, label: lbl }); }
+        return null;
+      }
+
+      const validTypes = ['text','textarea','choice','rating'];
+      if(noVal !== '' && typeVal !== '' && validTypes.includes(typeVal)){
+        const qobj = {}; qobj.no = noVal; qobj.type = typeVal; qobj.question = (iQuestion>=0 ? (r[iQuestion]||'').toString().trim() : '') || ('Soalan ' + noVal); qobj.id = qobj.no;
+        if(iOptions>=0){ const raw = (r[iOptions]||'').toString(); if(qobj.type==='choice') qobj.options = raw.split(',').map(s=>s.trim()).filter(Boolean); else if(qobj.type==='rating') qobj.max = parseInt(raw) || 5; }
+        return qobj;
+      }
+
+      if(closingVal) closingTemplate = closingVal;
+      return null;
+    }).filter(q=>q);
+
+    if(!questions.length) throw new Error('Tiada soalan dijumpai dalam CSV.');
+
+    idx=0; responses={};
+    setTimeout(()=>{ botSay('Soalan berjaya dimuatkan — mari kita mula!'); },600);
+    setTimeout(()=>proceedNext(),1400);
+  }catch(err){ console.error(err); appendBubbleText('❌ Gagal memuatkan soalan: '+(err.message||err),'bot'); inputwrap.innerHTML='<div class="small">Sila semak link CSV atau publish status di Google Sheets.</div>'; sendBtn.style.display='none'; }
+}
+
+start();
 </script></body>
 </html>      }
     }
