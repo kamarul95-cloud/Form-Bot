@@ -162,9 +162,36 @@ function detectMediaType(url){ if(!url) return 'unknown'; const clean = url.spli
   return 'unknown';
 }
 
-function drivePreviewUrl(orig){ try{ if(!orig) return orig; const m1 = orig.match(/\/d\/([a-zA-Z0-9_-]+)/); if(m1 && m1[1]) return `https://drive.google.com/uc?export=view&id=${m1[1]}`; const m2 = orig.match(/[?&]id=([a-zA-Z0-9_-]+)/); if(m2 && m2[1]) return `https://drive.google.com/uc?export=view&id=${m2[1]}`; // as fallback try preview
-    const m3 = orig.match(/\/file\/d\/([a-zA-Z0-9_-]+)\/view/); if(m3 && m3[1]) return `https://drive.google.com/uc?export=view&id=${m3[1]}`; return orig;}catch(e){return orig;} }
+function drivePreviewUrl(orig){
+  try{
+    if(!orig) return orig;
 
+    // ambil ID fail
+    let id = null;
+    const m1 = orig.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    const m2 = orig.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    const m3 = orig.match(/\/file\/d\/([a-zA-Z0-9_-]+)\/view/);
+    if(m1 && m1[1]) id = m1[1];
+    else if(m2 && m2[1]) id = m2[1];
+    else if(m3 && m3[1]) id = m3[1];
+
+    if(!id) return orig;
+
+    // detect extension jika ada
+    const extMatch = orig.split('?')[0].match(/\.([a-z0-9]+)$/i);
+    const ext = extMatch ? extMatch[1].toLowerCase() : '';
+
+    // kalau PDF: guna uc?export=view
+    if(ext === 'pdf') return `https://drive.google.com/uc?export=view&id=${id}`;
+    
+    // kalau image: guna uc?export=view juga
+    if(['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) return `https://drive.google.com/uc?export=view&id=${id}`;
+
+    // fallback untuk lain-lain (video/office) biar iframe biasa
+    return `https://drive.google.com/file/d/${id}/preview`;
+  }catch(e){return orig;}
+}
+  
 // render single media block according to detected type
 function renderMediaElement(m){
   const wrap = document.createElement('div'); wrap.className='media-wrap';
